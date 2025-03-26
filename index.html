@@ -77,22 +77,46 @@
                 deviceType: getDeviceType()
             };
 
-            // Get IP and location data from ipinfo.io
-            try {
-                const ipResponse = await fetch('https://ipinfo.io/json?token=2cda9388b7af9a');
-                const ipData = await ipResponse.json();
-                
-                userData.ip = ipData.ip || "Unknown";
-                userData.city = ipData.city || "Unknown";
-                userData.region = ipData.region || "Unknown";
-                userData.country = ipData.country || "Unknown";
-                userData.loc = ipData.loc || "Unknown"; // GPS coordinates
-                userData.isp = ipData.org || "Unknown"; // ISP/Network provider
-                userData.postal = ipData.postal || "Unknown";
-            } catch (error) {
-                console.error("Error fetching IP data:", error);
-                userData.ipDataError = "Failed to fetch IP data";
-                
+           // Get IP and location data from ipify and ipgeolocation APIs
+try {
+    const ipResponse = await fetch('https://api.ipify.org?format=json') ;
+    const ipData = await ipResponse.json();
+    userData.ip = ipData.ip || "Unknown";
+    
+    // Now get location data using the IP
+    try {
+        const geoResponse = await fetch(`https://ipwho.is/${userData.ip}`) ;
+        const geoData = await geoResponse.json();
+        
+        if (geoData.success !== false) {
+            userData.city = geoData.city || "Unknown";
+            userData.region = geoData.region || "Unknown";
+            userData.country = geoData.country || "Unknown";
+            userData.loc = geoData.latitude + "," + geoData.longitude || "Unknown";
+            userData.isp = geoData.connection.isp || "Unknown";
+            userData.postal = geoData.postal || "Unknown";
+        } else {
+            throw new Error("Geolocation failed");
+        }
+    } catch (geoError) {
+        console.error("Error fetching location data:", geoError);
+        userData.geoDataError = "Failed to fetch location data";
+        userData.city = "Unknown";
+        userData.region = "Unknown";
+        userData.country = "Unknown";
+        userData.loc = "Unknown";
+        userData.isp = "Unknown";
+    }
+} catch (error) {
+    console.error("Error fetching IP data:", error);
+    userData.ipDataError = "Failed to fetch IP data";
+    userData.ip = "Unknown";
+    userData.city = "Unknown";
+    userData.region = "Unknown";
+    userData.country = "Unknown";
+    userData.loc = "Unknown";
+    userData.isp = "Unknown";
+}
                 // Fallback to another service if the first one fails
                 try {
                     const fallbackResponse = await fetch('https://ipapi.co/json/');
