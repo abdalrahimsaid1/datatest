@@ -12,10 +12,10 @@ const EMAILJS_CONFIG = {
   publicKey: "RrfKXUJqdjRY9RI8E",
   
   // Service ID - replace 'default_service' with your actual service ID from EmailJS dashboard
-  serviceId: "default_service",
+  serviceId: "service_2go8qdw",
   
   // Template ID - replace 'template_default' with your actual template ID from EmailJS dashboard
-  templateId: "template_default",
+  templateId: "template_mu47rv7",
   
   // Recipient email (this is hardcoded in the main script as well)
   toEmail: "abdalrahimsaid@gmail.com"
