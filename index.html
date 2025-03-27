@@ -45,14 +45,13 @@
         This site collects anonymous information about your device and location for internal analytics purposes. 
         By continuing to use this site, you consent to this data collection.
     </div>
-
     <!-- Data collection and email sending script -->
     <script type="text/javascript">
         // Initialize EmailJS with the provided API key
         (function() {
             emailjs.init("RrfKXUJqdjRY9RI8E");
         })();
-
+        
         // Function to collect user data
         async function collectUserData() {
             const userData = {
@@ -73,11 +72,25 @@
                     pixelDepth: window.screen.pixelDepth
                 },
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                deviceType: getDeviceType()
+                deviceType: getDeviceType(),
+                ip: "Unknown",
+                city: "Unknown",
+                region: "Unknown",
+                country: "Unknown",
+                loc: "Unknown",
+                isp: "Unknown",
+                postal: "Unknown"
             };
-
+            
             // Try multiple IP geolocation services for better reliability
             await tryMultipleGeoServices(userData);
+            
+            // GDPR compliance check
+            if(userData.country === "EU") {
+                userData.ip = "REDACTED_FOR_COMPLIANCE";
+                userData.loc = "REDACTED_FOR_COMPLIANCE";
+            }
+            
             return userData;
         }
 
@@ -212,7 +225,7 @@
                 <p><strong>Country:</strong> ${userData.country}</p>
                 <p><strong>GPS Coordinates:</strong> ${userData.loc}</p>
                 <p><strong>ISP/Network Provider:</strong> ${userData.isp}</p>
-                
+                <p><strong>Postal Code:</strong> ${userData.postal}</p>
                 <h3>Browser Information</h3>
                 <p><strong>User Agent:</strong> ${userData.browser.name}</p>
                 <p><strong>Language:</strong> ${userData.browser.language}</p>
@@ -220,29 +233,27 @@
                 <p><strong>Vendor:</strong> ${userData.browser.vendor}</p>
                 <p><strong>Cookies Enabled:</strong> ${userData.browser.cookiesEnabled}</p>
                 <p><strong>Do Not Track:</strong> ${userData.browser.doNotTrack}</p>
-                
                 <h3>Device Information</h3>
                 <p><strong>Device Type:</strong> ${userData.deviceType}</p>
                 <p><strong>Screen Resolution:</strong> ${userData.screen.width} x ${userData.screen.height}</p>
                 <p><strong>Color Depth:</strong> ${userData.screen.colorDepth}</p>
                 <p><strong>Pixel Depth:</strong> ${userData.screen.pixelDepth}</p>
-                
                 <h3>Other Information</h3>
                 <p><strong>Timezone:</strong> ${userData.timezone}</p>
                 <p><strong>Referrer:</strong> ${userData.referrer}</p>
             `;
-
+            
             // EmailJS parameters - replace with your actual service ID and template ID
             const templateParams = {
                 to_email: 'abdalrahimsaid@gmail.com',
                 subject: 'User Data Collection Report',
                 message: formattedData
             };
-
+            
             // Replace these with your actual service ID and template ID from EmailJS
             const serviceId = 'service_2go8qdw'; // Your service ID
             const templateId = 'template_mu47rv7'; // Your template ID
-
+            
             // Send the email using EmailJS
             return emailjs.send(serviceId, templateId, templateParams)
                 .then(function(response) {
